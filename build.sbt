@@ -36,7 +36,7 @@ scalacOptions ++= Seq(
 javacOptions ++= Seq("-Xlint:unchecked", "-Xlint:deprecation", "-source", "1.7", "-target", "1.7")
 
 val CatsEffectVersion = "1.0.0-RC3"
-val ScalaZVersion     = "7.2.23"
+val ScalaZVersion     = "7.2.26"
 val ZIOVersion        = "0.2.6"
 
 libraryDependencies ++= Seq(
@@ -50,7 +50,10 @@ libraryDependencies ++= Seq(
   "org.scalaz"      %% "scalaz-zio"         % ZIOVersion,
   "org.scalaz"      %% "scalaz-zio-interop" % ZIOVersion,
   // Ammonite
-  "com.lihaoyi"     %  "ammonite"           % "1.1.2"   % "test" cross CrossVersion.full
+  "com.lihaoyi"     %  "ammonite"           % "1.1.2"   % "test" cross CrossVersion.full,
+  
+  //url parsing
+  "io.lemonlabs"    %% "scala-uri"          % "1.3.1",
 )
 
 resolvers ++= Seq(
