@@ -58,19 +58,15 @@ object types {
   def to1[A](t: (A, Unit)): A = t._1
   def from1[A](a: A): (A, Unit) = (a, ())
 
-  // Exercise 6.1
-
-  def to2[A](t: (A, Nothing)): Nothing = t._2
-
-  def from2[A](n: Nothing): (A, Nothing) = n
   //
   // EXERCISE 7
   //
   // Prove that `A * 0` is equivalent to `0` by implementing the following two
   // functions.
   //
-  def to2[A](t: (A, Nothing)): Nothing = ???
-  def from2[A](n: Nothing): (A, Nothing) = ???
+  def to2[A](t: (A, Nothing)): Nothing = t._2
+
+  def from2[A](n: Nothing): (A, Nothing) = n
 
   //
   // EXERCISE 8
@@ -775,21 +771,20 @@ object typeclasses {
       sort1(lessThan) ++ List(x) ++ sort1(notLessThan)
   }
 
-  implicit val OrdString: Ord[String] = new Ord[String] {
-    def compare(l: String, r: String): Ordering = l.compareTo(r) match {
-      case x > 0  => LT
-      case x =?= 0 => EQUAL
-      case _      => GT
-    }
-  }
-  def sort2[A: Ord](l: List[A]): List[A] = ???
-
   //
   // EXERCISE 2
   //
   // Create an instance of `Ord` for the type `String`.
   //
-  implicit val OrdString: Ord[String] = ???
+  implicit val OrdString: Ord[String] = new Ord[String] {
+    def compare(l: String, r: String): Ordering = l.compareTo(r) match {
+      case x if x < 0   => LT
+      case x if x == 0  => EQUAL
+      case _            => GT
+    }
+  }
+  def sort2[A: Ord](l: List[A]): List[A] = ???
+
   //
   // Scalaz 8 Encoding
   //
