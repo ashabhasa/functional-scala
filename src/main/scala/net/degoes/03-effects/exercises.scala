@@ -8,18 +8,20 @@ import scala.concurrent.duration._
 
 object zio_background {
   sealed trait Program[A] { self =>
-    final def *> [B](that: Program[B]): Program[B] = self.zip(that).map(_._2)
-
-    final def <* [B](that: Program[B]): Program[A] = self.zip(that).map(_._1)
+    final def *> [B](that: Program[B]): Program[B] =
+      self.flatMap(_ => that)
+    final def <* [B](that: Program[B]): Program[A] =
+      self.flatMap(a => that.map(_ => a))
 
     final def map[B](f: A => B): Program[B] =
-      flatMap(f andThen (Program.point(_)))
-
-    final def zip[B](that: Program[B]): Program[(A, B)] =
-      for {
-        a <- self
-        b <- that
-      } yield (a, b)
+      self match {
+        case Program.ReadLine(next) =>
+          Program.ReadLine(input => next(input).map(f))
+        case Program.WriteLine(line, next) =>
+          Program.WriteLine(line, next.map(f))
+        case Program.Return(value) =>
+          Program.Return(() => f(value()))
+      }
 
     final def flatMap[B](f: A => Program[B]): Program[B] =
       self match {
@@ -65,7 +67,7 @@ object zio_background {
   // Rewrite `yourName2` using the helper function `getName`, which shows how
   // to create larger programs from smaller programs.
   //
-  val yourName3: Program[Unit] = ???
+  def yourName3: Program[Unit] = ???
 
   val getName: Program[String] =
     writeLine("What is your name?").flatMap(_ => readLine)
@@ -76,8 +78,7 @@ object zio_background {
   // Implement the following effectful procedure, which interprets
   // `Program[A]` into `A`. You can use this procedure to "run" programs.
   //
-  def interpret[A](program: Program[A]): A =
-    ???
+  def interpret[A](program: Program[A]): A = ???
 
   //
   // EXERCISE 4
@@ -110,6 +111,7 @@ object zio_background {
 
         ageExplainer1()
     }
+
   }
   def ageExplainer2: Program[Unit] = ???
 }
@@ -328,7 +330,8 @@ object zio_failure {
   // represents a failure with a string error message, containing a user-
   // readable description of the failure.
   //
-  val stringFailure1: IO[String, Int] = ???
+  val stringFailure1: IO[String, Int] =
+    ???
 
   //
   // EXERCISE 2
@@ -432,26 +435,7 @@ object zio_effects {
   // Using the `IO.syncException` method, wrap Scala's `getLines` method to
   // import it into the world of pure functional programming.
   //
-  def readFile1(file: File): IO[Exception, List[String]] =
-    Source.fromFile(file).getLines.toList ?
-
-  //
-  // EXERCISE 3.5
-  //
-  // Using the `IO.syncThrowable` method, wrap Scala's `getLines` method to
-  // import it into the world of pure functional programming.
-  //
-  def readFile2(file: File): IO[Throwable, List[String]] =
-    Source.fromFile(file).getLines.toList ?
-
-  //
-  // EXERCISE 3.75
-  //
-  // Using the `IO.syncCatch` method, wrap Scala's `getLines` method to
-  // import it into the world of pure functional programming.
-  //
-  import java.io.IOException
-  def readFile3(file: File): IO[IOException, List[String]] =
+  def readFile(file: File): IO[Exception, List[String]] =
     Source.fromFile(file).getLines.toList ?
 
   //
@@ -490,18 +474,6 @@ object zio_effects {
     scheduledExecutor.schedule(new Runnable {
       def run(): Unit = ???
     }, l, u) ?
-
-
-  //
-  // EXERCISE 7.5
-  //
-  // Wrap the following Java-esque callback API into an `IO` using `IO.async`.
-  //
-  def readChunk(success: Array[Byte] => Unit, failure: Throwable => Unit): Unit = ???
-  val readChunkIO: IO[Throwable, Array[Byte]] =
-    IO.async[Throwable, Array[Byte]](k =>
-      readChunk(k.compose(ExitResult.Completed(_)), k.compose(ExitResult.Failed(_)))
-    )
 
   //
   // EXERCISE 8
@@ -566,7 +538,8 @@ object zio_concurrency {
   //
   // Compute all values `workers` in parallel using `IO.parAll`.
   //
-  val workers: List[IO[Nothing, Int]] = (1 to 10).toList.map(fibonacci(_))
+  val workers: List[IO[Nothing, Int]] =
+    (1 to 10).toList.map(fibonacci(_))
   val workersInParallel: IO[Nothing, List[Int]] =
     ???
 
@@ -612,26 +585,14 @@ object zio_concurrency {
     for {
       fiber1 <- fibonacci(10).fork
       fiber2 <- fibonacci(20).fork
-      both = (??? : Fiber[Nothing, Int])
+      both   <- (??? : IO[Nothing, Fiber[Nothing, Int]])
       _      <- both.interrupt
     } yield ()
 
   //
   // EXERCISE 9
   //
-  // Use the `timeout` method of `IO` to time out the following long-lived
-  // computation after 60 seconds.
-  //
-  val timedout: IO[Nothing, Option[Int]] = fibonacci(100) ?
-
-  //
-  // EXERCISE 10
-  //
-  // Use `IO.parTraverse` to compute the fibonacci numbers of the list of
-  // integers in parallel.
-  //
-  val fibsToCompute = List(1, 2, 3, 4, 5, 6, 7)
-  val inParallel: IO[Nothing, List[Int]] = IO.parTraverse(fibsToCompute)(fibonacci(_))
+  // io.timeout[Option[A]](None)(Some(_))(60.seconds)
 
   def fibonacci(n: Int): IO[Nothing, Int] =
     if (n <= 1) IO.now(n)
@@ -734,7 +695,7 @@ object zio_schedule {
   // Using the `repeat` method of the `IO` object, repeat printing "Hello World"
   // five times to the console.
   //
-  val repeated1 = putStrLn("Hello World") ?
+  val repeated1 = putStrLn("Hello World")
 
   //
   // EXERCISE 3
@@ -760,7 +721,7 @@ object zio_schedule {
   // Using the `repeat` method of the `IO` object, repeat the action
   // putStrLn("Hi hi") using `fiveTimesEverySecond`.
   //
-  val repeated2 = putStrLn("Hi hi") ?
+  val repeated2 = ???
 
   //
   // EXERCISE 6
@@ -769,8 +730,7 @@ object zio_schedule {
   // schedule, and the `everySecond` schedule, create a schedule that repeats
   // fives times rapidly, and then repeats every second forever.
   //
-  val fiveTimesThenEverySecond =
-    ???
+  val fiveTimesThenEverySecond = ???
 
   //
   // EXERCISE 7
@@ -784,7 +744,7 @@ object zio_schedule {
   //
   // EXERCISE 8
   //
-  // Using the `||` method of the `Schedule` object, the `fiveTimes` schedule,
+  // Using the `&&` method of the `Schedule` object, the `fiveTimes` schedule,
   // and the `everySecond` schedule, create a schedule that repeats the minimum
   // of five times and every second.
   //
@@ -817,7 +777,7 @@ object zio_interop {
   // Use `IO.fromFuture` method to convert the following `Future` into an `IO`.
   //
   val future1 = () => Future.successful("Hello World")
-  val io1: IO[Throwable, String] = IO.fromFuture(???)(global)
+  val io1 = IO.fromFuture(???)(global)
 
   //
   // EXERCISE 2
@@ -868,287 +828,19 @@ object zio_interop {
 }
 
 object zio_ref {
-  implicit class FixMe[A](a: A) {
-    def ? = ???
-  }
 
-  //
-  // EXERCISE 1
-  //
-  // Using the `Ref.apply` constructor, create a `Ref` that is initially `0`.
-  //
-  val makeZero: IO[Nothing, Ref[Int]] = ???
-
-  //
-  // EXERCISE 2
-  //
-  // Using the `get` and `set` methods of the `Ref` you created, change the
-  // value to be 10 greater than its initial value. Return the new value.
-  //
-  val incrementedBy10: IO[Nothing, Int] =
-    for {
-      ref   <- makeZero
-      value <- (ref ? : IO[Nothing, Int])
-      _     <- (ref ? : IO[Nothing, Unit])
-      value <- (ref ? : IO[Nothing, Int])
-    } yield value
-
-  //
-  // EXERCISE 3
-  //
-  // Using the `update` method of `Ref`, atomically increment the value by 10.
-  // Return the new value.
-  //
-  val atomicallyIncrementedBy10: IO[Nothing, Int] =
-    for {
-      ref   <- makeZero
-      value <- (ref ? : IO[Nothing, Int])
-    } yield value
-
-  //
-  // EXERCISE 4
-  //
-  // Using the `modify` method of `Ref` to atomically increment the value by 10,
-  // but return the old value.
-  //
-  val atomicallyIncrementedBy10PlusGet: IO[Nothing, Int] =
-    for {
-      ref   <- makeZero
-      value <- ref.modify(v => (???, v + 10))
-    } yield value
 }
 
 object zio_promise {
-  implicit class FixMe[A](a: A) {
-    def ? = ???
-  }
 
-  //
-  // EXERCISE 1
-  //
-  // Using the `make` method of `Promise`, construct a promise that cannot
-  // fail but can be completed with an integer.
-  //
-  val makeIntPromise: IO[Nothing, Promise[Nothing, Int]] = ???
-
-  //
-  // EXERCISE 2
-  //
-  // Using the `complete` method of `Promise`, complete a promise constructed
-  // with `makeIntPromise` with the integer 42.
-  //
-  val completed1: IO[Nothing, Boolean] =
-    for {
-      promise   <- makeIntPromise
-      completed <- (promise ? : IO[Nothing, Boolean])
-    } yield completed
-
-  //
-  // EXERCISE 3
-  //
-  // Using the `error` method of `Promise`, try to complete a promise
-  // constructed with `makeIntPromise`. Explain your findings.
-  //
-  val errored1: IO[Nothing, Boolean] =
-    for {
-      promise   <- makeIntPromise
-      completed <- (promise ? : IO[Nothing, Boolean])
-    } yield completed
-
-  //
-  // EXERCISE 4
-  //
-  // Using the `error` method of `Promise`, complete a new promise that
-  // you construct with `Promise.make` which can fail for any `Error` or
-  // produce a `String`.
-  //
-  val errored2: IO[Nothing, Boolean] =
-    for {
-      promise   <- Promise.make[Error, String]
-      completed <- (promise ? : IO[Nothing, Boolean])
-    } yield completed
-
-  //
-  // EXERCISE 5
-  //
-  // Using the `interrupt` method of `Promise`, complete a new promise that
-  // you construct with `Promise.make` which can fail for any `Error` or
-  // produce a `String`.
-  //
-  val interrupted: IO[Nothing, Boolean] =
-    for {
-      promise   <- Promise.make[Error, String]
-      completed <- (promise ? : IO[Nothing, Boolean])
-    } yield completed
-
-  //
-  // EXERCISE 6
-  //
-  // Using the `get` method of `Promise`, retrieve a value computed from inside
-  // another fiber.
-  //
-  val handoff1: IO[Nothing, Int] =
-    for {
-      promise <- Promise.make[Nothing, Int]
-      _       <- promise.complete(42).delay(10.milliseconds).fork
-      value   <- (promise ? : IO[Nothing, Int])
-    } yield value
-
-  //
-  // EXERCISE 7
-  //
-  // Using the `get` method of `Promise`, try to retrieve a value from a promise
-  // that was failed in another fiber.
-  //
-  val handoff2: IO[Error, Int] =
-    for {
-      promise <- Promise.make[Error, Int]
-      _       <- promise.error(new Error("Uh oh!")).delay(10.milliseconds).fork
-      value   <- (promise ? : IO[Nothing, Int])
-    } yield value
-
-  //
-  // EXERCISE 8
-  //
-  // Using the `get` method of `Promise`, try to retrieve a value from a promise
-  // that was interrupted in another fiber.
-  //
-  val handoff3: IO[Error, Int] =
-    for {
-      promise <- Promise.make[Error, Int]
-      _       <- promise.interrupt.delay(10.milliseconds).fork
-      value   <- (promise ? : IO[Nothing, Int])
-    } yield value
 }
 
 object zio_queue {
-  implicit class FixMe[A](a: A) {
-    def ? = ???
-  }
 
-  //
-  // EXERCISE 1
-  //
-  // Using the `Queue.bounded`, create a queue for `Int` values with a capacity
-  // of 10.
-  //
-  val makeQueue: IO[Nothing, Queue[Int]] =
-    ???
-
-  //
-  // EXERCISE 2
-  //
-  // Using the `offer` method of `Queue`, place an integer value into a queue.
-  //
-  val offered1: IO[Nothing, Unit] =
-    for {
-      queue <- makeQueue
-      _     <- (queue ? : IO[Nothing, Unit])
-    } yield ()
-
-  //
-  // EXERCISE 3
-  //
-  // Using the `take` method of `Queue`, take an integer value from a queue.
-  //
-  val taken1: IO[Nothing, Int] =
-    for {
-      queue <- makeQueue
-      _     <- queue.offer(42)
-      value <- (queue ? : IO[Nothing, Int])
-    } yield value
-
-  //
-  // EXERCISE 4
-  //
-  // In a child fiber, place 2 values into a queue, and in the main fiber, read
-  // 2 values from the queue.
-  //
-  val offeredTaken1: IO[Nothing, (Int, Int)] =
-    for {
-      queue <- makeQueue
-      _     <- (??? : IO[Nothing, Unit]).fork
-      v1    <- (queue ? : IO[Nothing, Int])
-      v2    <- (queue ? : IO[Nothing, Int])
-    } yield (v1, v2)
-
-  //
-  // EXERCISE 5
-  //
-  // In a child fiber, read infintely many values out of the queue and write
-  // them to the console. In the main fiber, write 100 values into the queue.
-  //
-  val infiniteReader1: IO[Nothing, List[Int]] =
-    for {
-      queue <- makeQueue
-      _     <- (??? : IO[Nothing, Nothing]).fork
-      vs    <- (queue ? : IO[Nothing, List[Int]])
-    } yield vs
-
-  //
-  // EXERCISE 6
-  //
-  // Using `Queue`, `Ref`, and `Promise`, implement an "actor" like construct
-  // that can atomically update the values of a counter.
-  //
-  sealed trait Message
-  case class Increment(amount: Int) extends Message
-  val makeCounter: IO[Nothing, Message => IO[Nothing, Int]] =
-    for {
-      counter  <- Ref(0)
-      mailbox  <- Queue.bounded[(Message, Promise[Nothing, Int])](100)
-      _        <- (mailbox.take ? : IO[Nothing, Fiber[Nothing, Nothing]])
-    } yield { (message: Message) =>
-      ???
-    }
-
-  val counterExample: IO[Nothing, Int] =
-    for {
-      counter <- makeCounter
-      _       <- IO.parAll(List.fill(100)(IO.traverse((0 to 100).map(Increment(_)))(counter)))
-      value   <- counter(Increment(0))
-    } yield value
 }
 
 object zio_rts {
-  implicit class FixMe[A](a: A) {
-    def ? = ???
-  }
 
-  //
-  // EXERCISE 1
-  //
-  // Create a new runtime system (that extends scalaz.zio.RTS).
-  //
-  val MyRTS: RTS = ???
-
-  //
-  // EXERCISE 2
-  //
-  // Run the following `IO` by using the `unsafeRun` method of `MyRTS`.
-  //
-  (putStrLn("Hello World") ? : Unit)
-
-  //
-  // EXERCISE 3
-  //
-  // Run the following `IO` by using the `unsafeRunSync` method of `MyRTS`.
-  //
-  import java.io.IOException
-  (putStrLn("Hello World") ? : ExitResult[IOException, Unit])
-
-  //
-  // EXERCISE 4
-  //
-  // In this purely functional main program (made possible by `App`), ask the
-  // user for their name and print it out again.
-  //
-  object MyApp extends App {
-    def run(args: List[String]): IO[Nothing, ExitStatus] =
-      (for {
-        _ <- putStrLn("Hello World!")
-      } yield ()).redeemPure(_ => ExitStatus.ExitNow(1), _ => ExitStatus.ExitNow(0))
-  }
 }
 
 object zio_advanced {
